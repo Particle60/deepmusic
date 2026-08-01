@@ -1,0 +1,43 @@
+# 离线语音音乐播放器配置
+music:
+  dir: "music/music"          # 音乐目录（歌曲所在文件夹；上板后改为 SD 卡路径如 /mnt/sd/Music），可用环境变量 VMP_MUSIC_DIR 覆盖
+  extensions: [".mp3", ".flac", ".wav", ".m4a", ".ogg", ".aac"]
+  playlists_dir: "music/playlists"   # 歌单目录（与歌曲目录同级）
+
+audio:
+  sample_rate: 16000            # 麦克风采样率（ASR 要求 16k）
+  mic_device: ""                # 麦克风设备名（alsa: -D 设备名 / sounddevice: 设备索引或名）
+  mic_backend: ""               # 麦克风后端: 留空=自动(linux→alsa,其他→sounddevice) / alsa / sounddevice
+  ao: ""                        # 播放输出: 留空=mpv自动检测; 无硬件开发可设 null; 板子设 alsa
+  volume: 80
+
+asr:
+  model_dir: "models/asr/sherpa-onnx-streaming-paraformer-bilingual-zh-en"
+  kws_model_dir: "models/kws/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01"
+  keywords_file: ""             # 唤醒词文件；留空则用模型目录 keywords.txt → test_wavs/test_keywords.txt
+
+tts:
+  enabled: true                 # 是否启用离线 TTS 语音播报
+  model_dir: "models/tts_melo/vits-melo-tts-zh_en"   # MeloTTS 中文，音质较好，44100Hz
+  speaker_id: 0                 # melo 单说话人，此值忽略
+  length_scale: 0.8             # 语速（越小越快），melo 用
+  volume: 100                   # 提示音播放音量 (0-100)，可调大
+
+vad:
+  energy_threshold: 120         # 静音门控 RMS 阈值（可调，越大越不容易误触发）
+  min_speech_ms: 100            # 判定"开始说话"的最小语音时长
+  silence_timeout_ms: 800       # 判定一句话结束的静音时长
+
+state:
+  wake_timeout_ms: 8000         # 唤醒后等待指令的超时（给足 8 秒）
+  wake_feedback_ms: 400          # 唤醒提示音（"你好"）时长，期间丢弃麦克风音频，避免被识别进指令
+  post_wake_grace_ms: 0        # 提示音播完后再留的余量（毫秒）
+
+player:
+  mpv_binary: "mpv"
+  mode: "order"                 # order / repeat_all / repeat_one / shuffle
+  volume: 80
+
+logging:
+  level: "INFO"
+  file: ""                      # 留空=只输出到终端

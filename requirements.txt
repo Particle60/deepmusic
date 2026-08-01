@@ -1,0 +1,13 @@
+# 离线语音音乐播放器依赖（Linux 板子）
+# 板子上还需系统包：mpv、alsa-utils、ffmpeg、libportaudio2（见 scripts/install_deps.sh）
+#
+# sherpa-onnx:
+#   - x86_64 / aarch64 (RK3566/Pi4+) 有官方 wheel，pip 直接装
+#   - 老 ARM (armv7) 需源码编译：https://k2-fsa.github.io/sherpa/onnx/install/wheel.html
+#   离线安装：install_deps.sh --offline-dir=... 支持
+sherpa-onnx>=1.10
+numpy>=1.26
+pypinyin>=0.51
+PyYAML>=6.0
+# 麦克风采集：Linux 板优先 ALSA(arecord)；其他平台/开发机用 sounddevice(PortAudio)
+sounddevice>=0.4.6

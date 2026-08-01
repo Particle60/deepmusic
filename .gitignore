@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 模型（需手动下载，不入库）
+models/
+
+# 测试数据
+test_data/
+
+# 音乐目录（用户的本地歌曲不入库）
+./music/
+
+# 播放状态（本地运行时生成）
+state/

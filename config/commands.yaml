@@ -1,0 +1,160 @@
+# 语音指令配置：把"语音说法"映射为指令（intent）
+# 修改此文件即可调整指令说法，无需改代码。
+#
+# 结构说明：
+# - patterns: 列表，每个元素是一条指令。
+# - intent: 指令名（与 app/commands/handler.py 中的 _on_<intent> 对应）
+# - type:
+#     keyword  : 文本包含任一关键词即命中（固定短语，如"下一首"）
+#     regex    : 用正则匹配，可提取参数（如歌名）
+# - keywords: [type=keyword] 触发该指令的说法关键词列表
+# - regex:    [type=regex] 正则表达式（python re）
+# - match:    [type=regex] fullmatch / match / search
+# - args_map: [type=regex] 把正则分组名映射为指令参数
+# - static_args: 固定附加参数（如 mode: shuffle）
+# - order: 匹配优先级，数字越小越先尝试（可选，默认按列表顺序）
+#
+# 注意：顺序很重要，先匹配的优先。占位型（播放歌曲/歌单）应放在固定短语之后。
+
+commands:
+  # ---------- 播放歌曲（占位，需带"歌曲"前缀） ----------
+  - intent: play_song
+    type: regex
+    order: 90
+    regex: >-
+      ^(请|帮我|麻烦)?(播放|放一下|给我放|放)(歌曲|音乐|歌)[《「“"『](?P<name>.+?)[》」”"』]
+    args_map: {name: name}
+
+  - intent: play_song
+    type: regex
+    order: 95
+    regex: >-
+      ^(请|帮我|麻烦)?(播放|放一下|给我放|放)(歌曲|音乐|歌)\s*(?P<name>.+)$
+    match: fullmatch
+    args_map: {name: name}
+
+  # ---------- 播放歌单（占位） ----------
+  - intent: play_playlist
+    type: regex
+    order: 80
+    regex: >-
+      ^(请|帮我|麻烦)?(播放|放)(歌单|播放列表|列表)[《「“"『](?P<name>.+?)[》」”"』]$
+    args_map: {name: name}
+
+  - intent: play_playlist
+    type: regex
+    order: 85
+    regex: >-
+      ^(请|帮我|麻烦)?(播放|放)(歌单|播放列表|列表)[《「“"『]?(?P<name>.+?)[》」”"』]?$
+    match: fullmatch
+    args_map: {name: name}
+
+  # ---------- 播放默认歌单"所有歌曲" ----------
+  - intent: play_playlist
+    type: regex
+    order: 70
+    regex: '^(请|帮我|麻烦)?(播放|放)(所有歌曲|全部歌曲|全部的歌|所有的歌)$'
+    match: fullmatch
+    static_args: {name: "所有歌曲"}
+
+  # ---------- 播放第 N 首 ----------
+  - intent: play_index
+    type: regex
+    order: 60
+    regex: >-
+      ^(请|帮我|麻烦)?(播放|放)第\s*(?P<num>\d+)\s*首
+    args_map: {index: num}
+    args_transform: {index: int_minus_1}
+
+  # ---------- 播放控制：切歌 ----------
+  - intent: next
+    type: keyword
+    keywords: [下一首, 下一曲, 下一首歌, 播放下一首, 播放下一首歌, 换一首, 切到下一首]
+
+  - intent: prev
+    type: keyword
+    keywords: [上一首, 上一曲, 上一首歌, 播放上一首, 播放上一首歌, 回到上一首, 回到上一首歌]
+
+  # ---------- 播放控制：暂停/继续/停止 ----------
+  - intent: pause
+    type: keyword
+    keywords: [暂停, 暂停播放, 先暂停, 停一下, 先停一下]
+
+  # 裸"播放"/"开始播放" → 继续（fullmatch，避免误吞"播放歌曲 X"）
+  - intent: resume
+    type: regex
+    order: 40
+    regex: '^(请|帮我|麻烦)?(播放|播放吧|放歌|放音乐)$'
+    match: fullmatch
+
+  - intent: resume
+    type: keyword
+    keywords: [继续, 接着播, 接着放, 继续播放, 开始播放]
+
+  - intent: stop
+    type: keyword
+    keywords: [停止, 停止播放, 停播, 别放了, 关掉音乐, 关机, 关音乐, 停止音乐]
+
+  # ---------- 播放模式 ----------
+  - intent: mode
+    type: keyword
+    keywords: [随机播放, 随机播, 打乱, 洗牌, 随机模式, 乱序播放, 洗牌播放, 打乱播放, 随机放]
+    static_args: {mode: shuffle}
+
+  - intent: mode
+    type: keyword
+    keywords: [顺序播放, 顺序播, 按顺序, 按顺序播放, 顺序模式, 顺序放]
+    static_args: {mode: order}
+
+  - intent: mode
+    type: keyword
+    keywords: [单曲循环, 单曲播, 循环这首, 循环单曲, 这首循环]
+    static_args: {mode: repeat_one}
+
+  - intent: mode
+    type: keyword
+    keywords: [列表循环, 全部循环, 全部循环播放, 循环播放, 循环, 连播]
+    static_args: {mode: repeat_all}
+
+  # ---------- 音量 ----------
+  - intent: volume_up
+    type: keyword
+    keywords: [音量加大, 把音量调大点, 音量调大点, 音量增大, 增大音量, 大声点, 调高音量, 音量调大,
+               把声音调大点, 声音调大点, 声音调大, 调大声音, 声音大点]
+
+  - intent: volume_down
+    type: keyword
+    keywords: [音量减小, 把音量调小点, 音量调小点, 减小音量, 小声点, 调低音量, 音量调小,
+               把声音调小点, 声音调小点, 声音调小, 调小声音, 声音小点]
+
+  - intent: set_volume
+    type: regex
+    order: 50
+    regex: >-
+      ^(请|帮我|麻烦)?(把)?(音量|声音)(调到|设为|改为|改成|调成|到)\s*(?P<volume>[0-9]{1,3}|[零一二三四五六七八九十百两]+)$
+    match: fullmatch
+    args_map: {volume: volume}
+    args_transform: {volume: cn_number}
+
+  # ---------- 查询 ----------
+  - intent: mode_status
+    type: keyword
+    keywords: [现在播放模式是什么, 播放模式是什么, 现在是什么播放模式, 播放模式是啥, 现在什么模式]
+
+  - intent: current_playlist
+    type: keyword
+    keywords: [现在歌单是什么, 现在歌单是啥, 现在歌单是哪个, 现在歌单叫什么]
+
+  - intent: status
+    type: keyword
+    keywords: [现在放的是什么歌, 现在放的什么歌, 什么歌, 哪首歌, 正在播放, 正在播,
+               现在播放的是什么, 现在播放的什么歌, 播放的是什么, 放的是什么]
+
+  - intent: list_playlists
+    type: keyword
+    keywords: [列出歌单, 列出所有歌单, 查看歌单, 有哪些歌单, 查看所有歌单]
+
+  # ---------- 刷新 ----------
+  - intent: refresh_playlists
+    type: keyword
+    keywords: [更新歌单, 刷新歌单, 重新扫描, 更新音乐, 刷新音乐, 扫描歌单]
