@@ -148,8 +148,15 @@ class MpvPlayer(BasePlayer):
             "--no-video",
             "--really-quiet",
         ]
-        if self.ao:  # 留空则让 mpv 自动检测音频输出
-            cmd.append(f"--ao={self.ao}")
+        if self.ao:
+            # 支持 "alsa/plughw:1,0" 这种"输出+设备"写法：
+            #   --ao=alsa --audio-device=alsa/plughw:1,0
+            if "/" in self.ao:
+                ao_name, _, ao_dev = self.ao.partition("/")
+                cmd.append(f"--ao={ao_name}")
+                cmd.append(f"--audio-device=alsa/{ao_dev}")
+            else:
+                cmd.append(f"--ao={self.ao}")
         cmd += self.extra_args
         self.proc = subprocess.Popen(
             cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
