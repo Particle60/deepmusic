@@ -128,7 +128,7 @@ if [ "$PIP_ONLY" = 0 ] && [ "$DOWNLOAD_ONLY" = 0 ]; then
     # 且部分板厂镜像的 trim 包占用 /usr/bin/ffmpeg 会造成 dpkg 冲突。
     # 仅开发期生成测试音频才需要 ffmpeg（可选，见 scripts/gen_test_audio.sh）。
     sudo apt-get install -y python3 python3-pip python3-venv \
-        mpv alsa-utils libportaudio2
+        mpv alsa-utils libportaudio2 libffi-dev
 
     # 音频用户组：把当前用户加入 audio 组（ALSA 权限）
     if ! groups | grep -qw audio; then
