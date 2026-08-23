@@ -81,7 +81,7 @@ class AsrEngine:
             tokens=tok,
             encoder=enc,
             decoder=dec,
-            num_threads=2,
+            num_threads=1,  # 弱核单线程往往更快（无线程切换开销），板子实测为准
             sample_rate=self.sample_rate,
             feature_dim=self.feat_dim,
             enable_endpoint_detection=True,

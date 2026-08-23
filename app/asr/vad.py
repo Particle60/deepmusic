@@ -39,10 +39,12 @@ class EnergyVad:
         self.speech_chunks = 0
         self.silence_count = 0
         self.speaking = False
+        self.current_speech = False  # 当前块是否真正有声（供状态机判断是否喂 ASR）
 
     def feed(self, chunk: bytes) -> str:
         """返回事件：'speech_start' / 'speech_continue' / 'speech_end' / 'silence'。"""
-        if rms(chunk) >= self.threshold:
+        self.current_speech = rms(chunk) >= self.threshold
+        if self.current_speech:
             self.silence_count = 0
             self.speech_chunks += 1
             if not self.speaking and self.speech_chunks >= self.min_speech_chunks:
@@ -61,3 +63,10 @@ class EnergyVad:
                 return "speech_end"
             return "speech_continue"  # 短暂停顿仍视为语音中
         return "silence"
+
+    def reset(self) -> None:
+        """重置状态（唤醒/结束一轮交互时调用），避免把上一轮的语音状态带入。"""
+        self.speaking = False
+        self.speech_chunks = 0
+        self.silence_count = 0
+        self.current_speech = False

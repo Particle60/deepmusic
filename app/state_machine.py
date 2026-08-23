@@ -57,6 +57,12 @@ class VoiceApp:
         self._resume_after_wake = False  # 唤醒时暂停了音乐，指令失败需恢复
         self._phase_t0 = 0.0  # 阶段计时起点（用于打印各节点相对时间）
         self._recording = False  # 是否正在录指令（提示音结束后置位）
+        # 录音阶段：已喂给 ASR 的语音块数。
+        # 必须达到 min_speech_blocks 才允许判"一句话结束"，
+        # 避免刚开口（前 1-2 块）就被 ASR 端点/环境音误判为说完。
+        # 默认最少 300ms 语音（约 3 块）。
+        self._speech_blocks = 0
+        self.min_speech_blocks = 3
 
     def _phase(self, label: str) -> None:
         """打印一个交互阶段节点（带相对时间），便于把握发指令时机。"""
@@ -118,9 +124,24 @@ class VoiceApp:
             if not getattr(self, "_recording", False):
                 self._recording = True
                 self._phase("录音开始（提示音结束，可开始说指令）")
-            self.asr.accept_waveform(self._samples(chunk))
-            if self.asr.is_endpoint():
-                self._on_utterance_done()
+            # VAD 门控：只在"当前块确实有声"的块上跑 ASR 推理并计数。
+            # 注意：VAD 的 speech_continue 也包含"说话中的短暂停顿（静音）"，
+            # 若把停顿静音也喂 ASR/计数，会充数突破最少语音门槛、浪费 CPU。
+            evt = self.vad.feed(chunk)
+            if evt == "speech_end":
+                # 尾静音达到阈值 → 一句话结束（需已说过足够语音）
+                if self._speech_blocks >= self.min_speech_blocks:
+                    self._on_utterance_done()
+                return
+            if self.vad.current_speech:
+                self._speech_blocks += 1
+                self.asr.accept_waveform(self._samples(chunk))
+                # ASR 端点仅作兜底：必须已喂足最少语音，避免刚开口就误判
+                if (
+                    self._speech_blocks >= self.min_speech_blocks
+                    and self.asr.is_endpoint()
+                ):
+                    self._on_utterance_done()
 
     def _on_wake(self) -> None:
         self._phase("唤醒成功")
@@ -145,12 +166,19 @@ class VoiceApp:
         self._phase(f"静默期 {fb_dur:.2f}s+{grace:.2f}s，之后可开始说指令")
         if self.asr:
             self.asr.reset()
+        if self.vad:
+            # 关键：清掉唤醒词的"正在说话"状态，否则录音一开遇到静音就立即结束
+            self.vad.reset()
+        self._speech_blocks = 0
         self._recording = False
 
     def _on_utterance_done(self) -> None:
         self._phase("录音结束（指令说完）")
-        text = self.asr.get_text() if self.asr else ""
+        text = ""
         if self.asr:
+            # 先把 ASR 里缓存的剩余帧解码完（VAD 提前结束语音，别丢句尾字）
+            self.asr.finish()
+            text = self.asr.get_text()
             self.asr.reset()
         if not text:
             if self.speaker:
@@ -178,10 +206,11 @@ class VoiceApp:
 
     def _go_idle(self) -> None:
         self.state = STATE_IDLE
+        self._speech_blocks = 0
         if self.wake:
             self.wake.reset()
         if self.vad:
-            self.vad.speaking = False
+            self.vad.reset()  # 清空语音状态，避免下一轮误判
 
     def stop(self) -> None:
         self.running = False
