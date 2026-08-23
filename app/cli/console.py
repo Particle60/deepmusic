@@ -61,6 +61,7 @@ def build_app(cfg: Config, real_player: bool = False) -> VoiceApp:
         tts_length_scale=cfg.tts.length_scale,
         volume=cfg.tts.volume,
         mpv_binary=cfg.player.mpv_binary,
+        ao=cfg.audio.ao,  # 提示音与音乐播放共用同一输出设备
     )
     state_store = PlaybackStateStore(cfg.resolve_model_dir("state/playback.json"))
 

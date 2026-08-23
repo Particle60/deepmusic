@@ -53,7 +53,8 @@ class Speaker:
 
     def __init__(self, tts_enabled: bool = False, tts_model_dir: str = "",
                  tts_speaker_id: int = 0, tts_length_scale: float = 1.0,
-                 volume: int = 100, voice: str = "Tingting", mpv_binary: str = "mpv"):
+                 volume: int = 100, voice: str = "Tingting", mpv_binary: str = "mpv",
+                 ao: str = ""):
         self.voice = voice
         self.tts_enabled = tts_enabled
         self.tts_model_dir = tts_model_dir
@@ -61,6 +62,7 @@ class Speaker:
         self.tts_length_scale = tts_length_scale
         self.volume = max(0, min(100, int(volume)))
         self.mpv_binary = mpv_binary
+        self.ao = ao  # 提示音 mpv 的输出，应与音乐播放共用同一设备
         self._backend = self._detect_backend()
         self._tts = None
         self._cache: Dict[str, str] = {}  # 短语 -> wav 文件路径
@@ -242,10 +244,19 @@ class Speaker:
                 return
             except Exception:  # noqa: BLE001
                 log.warning("常驻 mpv 播放失败，回退到独立进程", exc_info=True)
-        # 兜底：独立 mpv 进程
+        # 兜底：独立 mpv 进程（同样显式指定输出，避免板子自动检测无输出）
+        cmd = [self.mpv_binary, "--no-video", "--really-quiet",
+               f"--volume={self.volume}"]
+        if self.ao:
+            if "/" in self.ao:
+                ao_name, _, ao_dev = self.ao.partition("/")
+                cmd.append(f"--ao={ao_name}")
+                cmd.append(f"--audio-device=alsa/{ao_dev}")
+            else:
+                cmd.append(f"--ao={self.ao}")
+        cmd.append(path)
         subprocess.Popen(
-            [self.mpv_binary, "--no-video", "--really-quiet",
-             f"--volume={self.volume}", path],
+            cmd,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -257,7 +268,7 @@ class Speaker:
 
             self._player = MpvPlayer(
                 mpv_binary=self.mpv_binary,
-                ao="",  # 自动检测音频输出
+                ao=self.ao,  # 与音乐播放共用同一输出（板子上须与 music 一致，如 alsa）
                 volume=self.volume,
             )
             self._player.open()

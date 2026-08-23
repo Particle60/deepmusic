@@ -245,6 +245,26 @@ melo 对单字/低振幅词合成音量小，程序已做**归一化增益**（�
 - 安装 mpv：`brew install mpv`（macOS）/ `apt install mpv`（板子）
 - 语音模式 `ao` 留空自动检测；开发控制台加 `VMP_REAL_PLAYER=1`
 
+### 7.5 音乐能播但提示音（TTS/“你好”）没声音？
+
+**提示音与音乐播放共用同一套 mpv 输出配置**（`audio.ao`）。板子上如果 `audio.ao` 留空，音乐 mpv 会自己去 ALSA 自动检测一个默认设备，而提示音走的是**另一个常驻 mpv 实例**，两个实例可能选到不同的默认设备——常驻实例选错（如无声的 HDMI/虚拟设备）就只剩音乐有声音。
+
+排查顺序：
+
+1. **确认 `audio.ao` 与音频链路一致**：`config/config.yaml` 的 `audio.ao` 设为板子实际出声的设备，例如：
+   ```yaml
+   audio:
+     ao: "alsa"               # 或带设备： "alsa/plughw:0,0"
+   ```
+   代码已把该值同时传给音乐播放器与提示音播放器，两者必须一致。
+2. **单独验证提示音通道**：`config.yaml` 里 `audio.ao` 设为实际设备后，用 `arecord` 正常录音的前提下，启动后应能听到“开机成功”。若仍无声，见下一步。
+3. **验证 mpv 能否直接播出声**：
+   ```bash
+   mpv --ao=alsa --audio-device=alsa/plughw:0,0 /path/xxx.mp3
+   ```
+   能出声说明设备没问题；不能出声先解决 ALSA 层（参考 `audio-issue.md` 的 `-25 ENOTTY` 排查）。
+4. **检查日志**：确认提示音是否真的在播（`[speaker] say: ...`），以及 TTS 缓存/模型是否加载成功（`离线 TTS 已加载`）。若回退到了 `espeak`/`log`，说明 TTS 模型未加载。
+
 ---
 
 ## 8. 上板部署提示
