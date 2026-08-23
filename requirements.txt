@@ -5,7 +5,7 @@
 #   - x86_64 / aarch64 (RK3566/Pi4+) 有官方 wheel，pip 直接装
 #   - 老 ARM (armv7) 需源码编译：https://k2-fsa.github.io/sherpa/onnx/install/wheel.html
 #   离线安装：install_deps.sh --offline-dir=... 支持
-sherpa-onnx>=1.10
+sherpa-onnx>=1.13.5   # 单流 KWS 解码需 >=1.13.5（1.13.4 及更早有单流不触发关键词的 bug）
 numpy>=1.26
 pypinyin>=0.51
 PyYAML>=6.0

@@ -18,9 +18,15 @@
 # 开发模式：文本输入模拟语音指令（无需麦克风）
 .venv/bin/python app/main.py --console
 
+# 开发模式 + 真实播放器：输入指令能听到音乐（macOS/Linux 都行，需安装 mpv）
+VMP_REAL_PLAYER=1 .venv/bin/python app/main.py --console
+
 # 回放 WAV 语音样本，验证 识别→解析 链路
 .venv/bin/python app/main.py --replay test_data/播放青花瓷.wav --no-wake
 ```
+
+> **真实播放器**：默认控制台用假播放器（不出声，便于测试）。设 `VMP_REAL_PLAYER=1` 会用 mpv 真正播放。
+> 播放输出由 `config/config.yaml` 的 `audio.ao` 决定：留空=自动检测（开发机）、`alsa`（板子）、`null`（无声）。
 
 启动后，先听到 **"开机成功"** 提示音，表示程序已就绪、开始监听唤醒词。
 

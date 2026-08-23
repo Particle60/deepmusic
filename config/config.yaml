@@ -13,7 +13,7 @@ audio:
 
 asr:
   model_dir: "models/asr/sherpa-onnx-streaming-paraformer-bilingual-zh-en"
-  kws_model_dir: "models/kws/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01"
+  kws_model_dir: "models/kws/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01-mobile"  # 嵌入式优化版（batch=1，单流解码，需 sherpa-onnx>=1.13.5）
   keywords_file: ""             # 唤醒词文件；留空则用模型目录 keywords.txt → test_wavs/test_keywords.txt
 
 tts:

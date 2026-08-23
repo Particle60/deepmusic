@@ -106,41 +106,26 @@ class WakeWordDetector:
             keywords_threshold=0.05,
             provider=self.provider,
         )
-        # 注意：sherpa-onnx 1.13 的 decode_streams 在只有 1 个流时解码不充分，
-        # 必须 ≥2 个流一起批量解码才能正确触发关键词。
-        # 因此这里维护一个"主流 + 占位静音流"，全程用批量解码。
+        # 说明：要求 sherpa-onnx >= 1.13.5（1.13.4 及更早有单流解码 bug，
+        # 单流时关键词不触发，曾用“主流+占位流”双流绕过）。
+        # 单流比双流省约一半 KWS 计算量，且 mobile 模型只支持 batch=1。
         self.stream = self.spotter.create_stream()
-        self._dummy = self.spotter.create_stream()
         return True
-
-    def _feed_dummy(self, n_samples: int) -> None:
-        """给占位流喂与主流等量的静音，保证解码全程 ≥2 流。"""
-        if self._dummy is None:
-            return
-        self._dummy.accept_waveform(
-            self.sample_rate, np.zeros(n_samples, dtype=np.float32)
-        )
 
     def accept_waveform(self, samples_float32: np.ndarray) -> bool:
         """喂入 float32 采样；返回本次是否命中唤醒词（命中后需 reset）。"""
         if self.spotter is None or self.stream is None:
             return False
         self.stream.accept_waveform(self.sample_rate, samples_float32)
-        self._feed_dummy(len(samples_float32))
-        streams = [self.stream, self._dummy]
         hit = False
-        while True:
-            ready = [ss for ss in streams if self.spotter.is_ready(ss)]
-            for ss in streams:
-                r = self.spotter.get_result(ss)
-                if r:
-                    if ss is self.stream:
-                        self._last_keyword = r
-                        hit = True
-                    self.spotter.reset_stream(ss)
-            if not ready:
-                break
-            self.spotter.decode_streams(ready)
+        while self.spotter.is_ready(self.stream):
+            self.spotter.decode_stream(self.stream)
+            r = self.spotter.get_result(self.stream)
+            if r:
+                self._last_keyword = r
+                hit = True
+                # 命中后立即重置，继续监听下一个关键词
+                self.spotter.reset_stream(self.stream)
         return hit
 
     def finalize(self) -> None:
@@ -149,29 +134,20 @@ class WakeWordDetector:
             return
         tail = np.zeros(int(0.66 * self.sample_rate), dtype=np.float32)
         self.stream.accept_waveform(self.sample_rate, tail)
-        self._feed_dummy(len(tail))
         self.stream.input_finished()
-        self._dummy.input_finished()
-        streams = [self.stream, self._dummy]
-        while True:
-            ready = [ss for ss in streams if self.spotter.is_ready(ss)]
-            for ss in streams:
-                r = self.spotter.get_result(ss)
-                if r:
-                    if ss is self.stream:
-                        self._last_keyword = r
-                    self.spotter.reset_stream(ss)
-            if not ready:
-                break
-            self.spotter.decode_streams(ready)
+        while self.spotter.is_ready(self.stream):
+            self.spotter.decode_stream(self.stream)
+            r = self.spotter.get_result(self.stream)
+            if r:
+                self._last_keyword = r
+                self.spotter.reset_stream(self.stream)
 
     @property
     def last_keyword(self) -> str:
         return self._last_keyword
 
     def reset(self) -> None:
-        """重置主流与占位流（关键：两者都必须重建，否则批量解码状态错乱）。"""
+        """重置流，回到待监听状态。"""
         if self.spotter is not None:
             self.stream = self.spotter.create_stream()
-            self._dummy = self.spotter.create_stream()
             self._last_keyword = ""
