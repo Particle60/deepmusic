@@ -81,14 +81,19 @@ class VoiceApp:
         if self.mic is None or self.vad is None:
             log.error("语音模式需要麦克风与 VAD，请先接入硬件/使用 --voice")
             return
+        from .audio.mic import BufferedMic
+
+        # 采集/处理线程解耦：采集线程始终实时读走麦克风，避免处理慢导致 ALSA
+        # 缓冲溢出 overrun；处理慢时只是队列积压（丢旧块），不再整段丢音频。
+        mic = BufferedMic(self.mic)
         self.running = True
-        self.mic.open()
+        mic.open()
         try:
             while self.running:
-                chunk = self.mic.read_chunk(self.chunk_bytes)
+                chunk = mic.read_chunk(self.chunk_bytes)
                 self._process_chunk(chunk)
         finally:
-            self.mic.close()
+            mic.close()
 
     def _process_chunk(self, chunk: bytes) -> None:
         if self.state == STATE_IDLE:
