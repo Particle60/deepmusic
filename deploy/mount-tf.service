@@ -1,0 +1,27 @@
+# 自动挂载 TF 卡（支持随意更换）：开机时探测并挂载到 /mnt/sd。
+# 由 voice-music-player.service 依赖（After=mount-tf.service），保证程序启动前卡已就绪。
+#
+# 安装：
+#   sudo cp deploy/mount-tf.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable mount-tf.service
+#   手动测试：sudo systemctl start mount-tf.service
+
+[Unit]
+Description=Auto-mount TF card to /mnt/sd
+# 等设备节点/块设备就绪后再探测
+After=local-fs.target systemd-udevd.service
+Wants=systemd-udevd.service
+ConditionPathExists=/dev/mmcblk1
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# 用 root 挂载；脚本可多次安全执行（已挂载则跳过）
+ExecStart=/bin/bash /home/pi/deepmusic/scripts/mount_tf.sh
+# 卡可能没插/尚未枚举，重试几次
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -16,6 +16,9 @@ Description=Voice Music Player (offline ASR + local music)
 # 等声卡就绪再启动（音频驱动/ALSA 混音准备完）
 After=sound.target network.target
 Wants=sound.target
+# 等 TF 卡自动挂载服务完成（程序启动前 /mnt/sd 已就绪）
+After=mount-tf.service
+Wants=mount-tf.service
 
 [Service]
 Type=simple
@@ -30,7 +33,7 @@ RestartSec=3
 # 环境变量
 Environment=PYTHONUNBUFFERED=1
 # 音乐目录默认用项目配置 config/config.yaml 的 music.dir（相对 WorkingDirectory 解析）
-# 若音乐在 SD 卡，取消下面这行并改成实际挂载路径：
+# 若音乐在 TF 卡，取消下面这行，会覆盖config.yaml中的设置：
 # Environment=VMP_MUSIC_DIR=/mnt/sd/Music
 
 [Install]
