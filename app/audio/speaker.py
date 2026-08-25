@@ -65,6 +65,9 @@ class Speaker:
         self._tts = None
         self._cache: Dict[str, str] = {}  # 短语 -> wav 文件路径
         self._player = None  # 常驻 mpv（提示音播放），避免每次冷启动延迟
+        # 固定提示音（assets/tts_cache 预编译 WAV）与 tts 开关解耦：始终加载，
+        # 即使关闭 tts，固定提示音也能播放（不耗任何即时合成）。
+        self._precompile(allow_synthesize=False)
         if tts_enabled:
             self._load_offline_tts()
         self._ensure_player()
@@ -98,7 +101,7 @@ class Speaker:
             self._tts = tts
             self._backend = "sherpa-onnx"
             log.info("离线 TTS 已加载：%s (speaker %d)", self.tts_model_dir, self.tts_speaker_id)
-            self._precompile()
+            self._precompile(allow_synthesize=True)  # 补齐缺失的固定短语（现场合成）
         except Exception:  # noqa: BLE001
             log.warning("离线 TTS 加载失败，回退到 %s", self._backend, exc_info=True)
             self._tts = None
@@ -112,8 +115,12 @@ class Speaker:
 
         return os.path.join(PROJECT_ROOT, _REPO_CACHE_DIR)
 
-    def _precompile(self) -> None:
-        """加载预生成提示短语音频：优先仓库 assets/tts_cache，缺失的现场合成。"""
+    def _precompile(self, allow_synthesize: bool = True) -> None:
+        """加载预生成提示短语音频：优先仓库 assets/tts_cache，缺失的可选现场合成。
+
+        allow_synthesize=False（tts 关闭）时只加载已有 WAV，不做任何即时合成——
+        避免在低性能板（如 nanoPi）上合成拖慢交互。
+        """
         repo_dir = self._repo_cache_dir()
         try:
             os.makedirs(_CACHE_DIR, exist_ok=True)
@@ -139,8 +146,12 @@ class Speaker:
         if loaded:
             log.info("加载预生成提示短语 %d 条（仓库 %s）", loaded, repo_dir)
         if missing:
-            log.info("需现场合成 %d 条：%s", len(missing), missing)
-            self._synthesize(missing, repo_dir)
+            if allow_synthesize and self._tts is not None:
+                log.info("需现场合成 %d 条：%s", len(missing), missing)
+                self._synthesize(missing, repo_dir)
+            else:
+                log.info("固定提示音缓存缺失 %d 条（tts 未启用，跳过合成）：%s",
+                         len(missing), missing)
 
     @staticmethod
     def _cache_key(text: str) -> str:
@@ -185,18 +196,24 @@ class Speaker:
             self._cache[text] = os.path.join(repo_dir, f"{key}.wav")
 
     def say(self, text: str) -> None:
-        """语音播报（TTS）。优先播放预合成缓存，未命中才即时合成。"""
+        """语音播报（TTS）。固定提示音命中缓存直接播放；动态文本在 tts 关闭时静默跳过。"""
         log.info("[speaker] say: %s (backend=%s)", text, self._backend)
         try:
+            # ① 固定提示音：命中预编译缓存（tts_cache）直接播放，与 tts 开关无关
+            cached = self._cache.get(text)
+            if cached and os.path.exists(cached):
+                self._play_wav(cached)
+                return
+            # ② 动态文本（歌名/歌单名/数字/模式等拼接，无法预编译）
             if self._tts is not None:
-                # 精确命中缓存直接播放
-                cached = self._cache.get(text)
-                if cached and os.path.exists(cached):
-                    self._play_wav(cached)
-                    return
-                # 尝试在预编译短语中找可拼接的固定片段（如 "歌单" + 名称 + "为空或不存在"）
+                # TTS 已启用：即时合成
                 self._play_offline(text)
                 return
+            if not self.tts_enabled:
+                # tts 关闭：动态提示音静默跳过，避免慢速即时合成拖累低性能板
+                log.info("[speaker] tts 关闭，跳过动态提示音: %s", text)
+                return
+            # ③ tts 开启但模型未加载（如板上缺模型）：回退系统 TTS 兜底
             if self._backend == "log":
                 return
             if self._backend == "say":
