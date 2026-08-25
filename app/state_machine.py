@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import queue
+import threading
 import time
 from typing import Optional
 
@@ -52,6 +54,7 @@ class VoiceApp:
         self.chunk_bytes = chunk_bytes
         self.state = STATE_IDLE
         self.running = False
+        self._q: "queue.Queue[tuple]" = queue.Queue()  # 采集→处理 缓存队列（(采集时刻, chunk)）
         self._wake_at = 0.0
         self._listen_from = 0.0  # 唤醒提示音播完后的时间点，此前的音频丢弃
         self._resume_after_wake = False  # 唤醒时暂停了音乐，指令失败需恢复
@@ -83,30 +86,62 @@ class VoiceApp:
             return
         self.running = True
         self.mic.open()
+        threading.Thread(
+            target=self._capture_loop, daemon=True, name="mic-capture"
+        ).start()
         try:
             while self.running:
-                chunk = self.mic.read_chunk(self.chunk_bytes)
-                self._process_chunk(chunk)
+                try:
+                    t, chunk = self._q.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                self._process_chunk(t, chunk)
         finally:
             self.mic.close()
 
-    def _process_chunk(self, chunk: bytes) -> None:
+    def _capture_loop(self) -> None:
+        """采集线程：持续排空麦克风管道，把带时间戳的 chunk 放入缓存队列。
+
+        关键：即使处理（ASR）很慢，采集也始终保持实时，从根上避免 ALSA overrun。
+        """
+        try:
+            while self.running:
+                chunk = self.mic.read_chunk(self.chunk_bytes)
+                self._q.put((time.monotonic(), chunk))
+        except Exception:  # noqa: BLE001
+            if self.running:
+                log.warning("采集线程异常退出", exc_info=True)
+
+    def _clear_queue(self) -> None:
+        """丢弃缓存队列里剩余的音频块（识别完成后已无用）。"""
+        cleared = 0
+        while True:
+            try:
+                self._q.get_nowait()
+                cleared += 1
+            except queue.Empty:
+                break
+        if cleared:
+            log.info("丢弃 %d 块积压缓存", cleared)
+
+    def _process_chunk(self, t: float, chunk: bytes) -> None:
         if self.state == STATE_IDLE:
             evt = self.vad.feed(chunk)
             if evt in ("speech_start", "speech_continue"):
                 if self.wake is not None and self.wake.accept_waveform(
                     self._samples(chunk)
                 ):
-                    self._on_wake()
+                    self._on_wake(t)  # 以采集时刻 t 作为唤醒起点
             return
 
         if self.state == STATE_LISTENING:
-            now = time.monotonic()
-            if now > self._wake_at + self.wake_timeout_ms / 1000.0:
+            # 超时/静默期一律按"采集时刻"t 判定，避免处理延迟导致误判
+            if t > self._wake_at + self.wake_timeout_ms / 1000.0:
                 self._phase("等待指令超时，回到待机")
+                self._clear_queue()  # 丢弃剩余缓存
                 self._go_idle()
                 return
-            if now < self._listen_from:
+            if t < self._listen_from:
                 # 唤醒提示音（"你好"）播放期间：丢弃麦克风音频，避免被识别进指令
                 return
             # 进入指令录音（从提示音结束后第一次喂 ASR 起算）
@@ -117,9 +152,10 @@ class VoiceApp:
             if self.asr.is_endpoint():
                 self._on_utterance_done()
 
-    def _on_wake(self) -> None:
+    def _on_wake(self, t: float) -> None:
+        """唤醒。t 为命中唤醒词那一刻的采集时刻（用于对齐超时/静默期判定）。"""
         self._phase("唤醒成功")
-        self._phase_t0 = time.monotonic()  # 重置阶段计时
+        self._phase_t0 = time.monotonic()  # 重置阶段计时（仅用于日志）
         # 唤醒时暂停音乐，避免干扰听"你好"和指令
         if self.handler.pause_music():
             self._resume_after_wake = True
@@ -131,7 +167,7 @@ class VoiceApp:
             self.speaker.say("你好")  # 唤醒后反馈"你好"，提示已就绪
             self._phase("回应结束（「你好」播完）")
         self.state = STATE_LISTENING
-        self._wake_at = time.monotonic()
+        self._wake_at = t  # 以采集时刻为基准，避免处理延迟压缩超时窗口
         # 提示音 + 余量 播放期间丢弃麦克风音频，确保"你好"不被录进指令。
         # 按实际提示音时长计算静默期，避免固定 700ms 造成的多余等待。
         fb_dur = self.speaker.say_duration("你好") if self.speaker else 0.0
@@ -144,6 +180,7 @@ class VoiceApp:
 
     def _on_utterance_done(self) -> None:
         self._phase("录音结束（指令说完）")
+        self._clear_queue()  # 识别完成，剩余缓存已无用，直接丢弃
         text = self.asr.get_text() if self.asr else ""
         if self.asr:
             self.asr.reset()
@@ -180,6 +217,8 @@ class VoiceApp:
 
     def stop(self) -> None:
         self.running = False
+        if self.mic is not None:
+            self.mic.close()  # 终止采集，让采集线程尽快退出
 
     @staticmethod
     def _samples(chunk: bytes):

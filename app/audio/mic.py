@@ -53,6 +53,9 @@ class AlsaMicReader(MicReader):
             "-r", str(self.sample_rate),
             "-c", "1",
             "-t", "raw",
+            # 加大 ALSA 缓冲（500ms），即使 CPU 偶发卡顿也能吸收不溢出，避免 overrun
+            "-B", "500000",
+            "--period-size", "3200",
         ]
         if self.device:
             cmd += ["-D", self.device]
