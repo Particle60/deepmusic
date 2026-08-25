@@ -24,6 +24,17 @@ from app.state_machine import VoiceApp  # noqa: E402
 
 def main(cfg: Config = None) -> int:
     cfg = cfg or Config.load()
+    # 程序一启动就立刻播"开始开机"（走 tts_cache），给用户即时反馈；
+    # 提前到这里是因为下面 library.scan()/模型加载都较耗时。
+    speaker = Speaker(
+        tts_enabled=cfg.tts.enabled,
+        tts_model_dir=cfg.resolve_model_dir(cfg.tts.model_dir),
+        tts_speaker_id=cfg.tts.speaker_id,
+        tts_length_scale=cfg.tts.length_scale,
+        volume=cfg.tts.volume,
+        mpv_binary=cfg.player.mpv_binary,
+    )
+    speaker.say("开始开机")
     library = MusicLibrary(cfg.music.dir, cfg.music.extensions)
     library.scan()
     playlists = PlaylistManager(cfg.music.dir, cfg.music.resolved_playlists_dir)
@@ -35,14 +46,6 @@ def main(cfg: Config = None) -> int:
     controller = PlaybackController(player, mode=cfg.player.mode)
     # 歌曲播完自动按播放模式切下一首（顺序/随机/循环）
     player.on_track_end = controller.on_track_end
-    speaker = Speaker(
-        tts_enabled=cfg.tts.enabled,
-        tts_model_dir=cfg.resolve_model_dir(cfg.tts.model_dir),
-        tts_speaker_id=cfg.tts.speaker_id,
-        tts_length_scale=cfg.tts.length_scale,
-        volume=cfg.tts.volume,
-        mpv_binary=cfg.player.mpv_binary,
-    )
     state_store = PlaybackStateStore(cfg.resolve_model_dir("state/playback.json"))
 
     def respond(msg: str) -> None:
@@ -81,7 +84,7 @@ def main(cfg: Config = None) -> int:
     player.open()
     try:
         handler.restore()  # 恢复上次播放状态（断电/重启）
-        speaker.say("开机成功")  # 启动完成提示音
+        speaker.say("开机成功")  # 所有模型加载完成，就绪提示音
         app.run()
     except KeyboardInterrupt:
         pass

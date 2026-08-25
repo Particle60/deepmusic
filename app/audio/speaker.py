@@ -27,6 +27,7 @@ _REPO_CACHE_DIR = "assets/tts_cache"
 
 # 需要预合成（提前生成）的固定提示短语
 _PRECOMPILED_PHRASES = (
+    "开始开机",
     "开机成功",
     "你好",
     "听不懂",
