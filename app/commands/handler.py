@@ -23,6 +23,7 @@ class CommandHandler:
         respond: Optional[Callable[[str], None]] = None,
         match_threshold: float = 0.6,
         state_store: Optional[PlaybackStateStore] = None,
+        speaker: Optional["Speaker"] = None,
     ):
         self.library = library
         self.playlists = playlists
@@ -30,6 +31,7 @@ class CommandHandler:
         self.respond = respond or (lambda msg: log.info("[respond] %s", msg))
         self.match_threshold = match_threshold
         self.state_store = state_store
+        self.speaker = speaker  # 提示音（用于音量联动）
         # 本次指令执行后是否自动恢复唤醒前暂停的音乐。
         # 暂停/停止类指令应保持暂停/停止，不被自动恢复覆盖。
         self._suppress_resume = False
@@ -274,18 +276,24 @@ class CommandHandler:
     def _on_set_volume(self, args: dict) -> bool:
         vol = max(40, min(100, int(args.get("volume", 80))))
         self.controller.player.set_volume(vol)
+        if self.speaker is not None:
+            self.speaker.set_volume(vol)  # 提示音与主音量联动
         self.respond(f"音量{int_to_cn(vol)}")
         return True
 
     def _on_volume_up(self, args: dict) -> bool:
         vol = min(100, self.controller.player.get_volume() + 10)
         self.controller.player.set_volume(vol)
+        if self.speaker is not None:
+            self.speaker.set_volume(vol)
         self.respond(f"音量{int_to_cn(vol)}")
         return True
 
     def _on_volume_down(self, args: dict) -> bool:
         vol = max(40, self.controller.player.get_volume() - 10)
         self.controller.player.set_volume(vol)
+        if self.speaker is not None:
+            self.speaker.set_volume(vol)
         self.respond(f"音量{int_to_cn(vol)}")
         return True
 

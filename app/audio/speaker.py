@@ -251,6 +251,15 @@ class Speaker:
         chars = len([c for c in text if not c.isspace()])
         return max(0.3, chars / 4.5)
 
+    def set_volume(self, volume: int) -> None:
+        """设置提示音音量（与主音量联动）。同步常驻 mpv 提示音播放器。"""
+        self.volume = max(40, min(100, int(volume)))
+        if self._player is not None:
+            try:
+                self._player.set_volume(self.volume)
+            except Exception:  # noqa: BLE001
+                log.warning("提示音音量设置失败", exc_info=True)
+
     def _play_wav(self, path: str) -> None:
         """用常驻 mpv 播放 wav（复用进程，避免每次冷启动 ~1s 延迟）。"""
         if self._player is not None and self._player.is_playing():

@@ -69,7 +69,7 @@ def build_app(cfg: Config, real_player: bool = False) -> VoiceApp:
         speaker.say(msg)
 
     handler = CommandHandler(library, playlists, controller, respond=respond,
-                             state_store=state_store)
+                             state_store=state_store, speaker=speaker)
     app = VoiceApp(mic=None, vad=None, wake=None, asr=None, handler=handler, speaker=speaker)
     # 供控制台 ! 命令访问
     app.library = library

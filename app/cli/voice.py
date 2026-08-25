@@ -50,7 +50,7 @@ def main(cfg: Config = None) -> int:
         speaker.say(msg)
 
     handler = CommandHandler(library, playlists, controller, respond=respond,
-                             state_store=state_store)
+                             state_store=state_store, speaker=speaker)
 
     asr = AsrEngine(cfg.resolve_model_dir(cfg.asr.model_dir),
                     sample_rate=cfg.audio.sample_rate)
