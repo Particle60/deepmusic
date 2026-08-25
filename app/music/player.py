@@ -91,7 +91,7 @@ class NullPlayer(BasePlayer):
         self.paused = False
 
     def set_volume(self, volume: int) -> None:
-        self.volume = max(0, min(100, int(volume)))
+        self.volume = max(40, min(100, int(volume)))
 
     def get_volume(self) -> int:
         return self.volume
@@ -240,7 +240,7 @@ class MpvPlayer(BasePlayer):
         return self.paused
 
     def set_volume(self, volume: int) -> None:
-        self.volume = max(0, min(100, int(volume)))
+        self.volume = max(40, min(100, int(volume)))
         self._send("set", ["volume", str(self.volume)])
 
     def get_volume(self) -> int:

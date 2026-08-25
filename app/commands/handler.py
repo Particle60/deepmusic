@@ -272,7 +272,7 @@ class CommandHandler:
         return True
 
     def _on_set_volume(self, args: dict) -> bool:
-        vol = max(0, min(100, int(args.get("volume", 50))))
+        vol = max(40, min(100, int(args.get("volume", 80))))
         self.controller.player.set_volume(vol)
         self.respond(f"音量{int_to_cn(vol)}")
         return True
@@ -284,7 +284,7 @@ class CommandHandler:
         return True
 
     def _on_volume_down(self, args: dict) -> bool:
-        vol = max(0, self.controller.player.get_volume() - 10)
+        vol = max(40, self.controller.player.get_volume() - 10)
         self.controller.player.set_volume(vol)
         self.respond(f"音量{int_to_cn(vol)}")
         return True

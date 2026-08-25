@@ -59,7 +59,7 @@ class Speaker:
         self.tts_model_dir = tts_model_dir
         self.tts_speaker_id = tts_speaker_id
         self.tts_length_scale = tts_length_scale
-        self.volume = max(0, min(100, int(volume)))
+        self.volume = max(40, min(100, int(volume)))  # 提示音音量 40~100，与音乐播放一致
         self.mpv_binary = mpv_binary
         self._backend = self._detect_backend()
         self._tts = None

@@ -91,10 +91,12 @@ class TestPlayback(unittest.TestCase):
         self.assertEqual(self.controller.shuffle_order[0], 0)
 
     def test_volume_clamp(self):
-        self.player.set_volume(120)
-        self.assertEqual(self.player.get_volume(), 100)
+        self.player.set_volume(80)
+        self.assertEqual(self.player.get_volume(), 80)
+        self.player.set_volume(300)
+        self.assertEqual(self.player.get_volume(), 100)  # 上限 100
         self.player.set_volume(-5)
-        self.assertEqual(self.player.get_volume(), 0)
+        self.assertEqual(self.player.get_volume(), 40)  # 下限 40
 
     def test_pause_resume(self):
         self.controller.load(self.tracks)
