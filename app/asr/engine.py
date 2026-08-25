@@ -85,9 +85,10 @@ class AsrEngine:
             sample_rate=self.sample_rate,
             feature_dim=self.feat_dim,
             enable_endpoint_detection=True,
-            rule1_min_trailing_silence=2.4,
-            rule2_min_trailing_silence=1.2,
-            rule3_min_utterance_length=300,
+            # 放宽结束判定，避免指令尾音还没喂完就被判结束（导致最后一个字丢失）
+            rule1_min_trailing_silence=3.0,
+            rule2_min_trailing_silence=1.5,
+            rule3_min_utterance_length=500,
             provider=self.provider,
         )
         self.stream = self.recognizer.create_stream()

@@ -186,8 +186,17 @@ class CommandHandler:
             pl_name = "所有歌曲"
         else:
             pl = self.playlists.get(name)
+            # 精确匹配失败 → 拼音模糊匹配兜底（ASR 识别不准，如"跑"→"跑步"）
+            if pl is None:
+                from ..music.pinyin_match import best_match
+
+                matched = best_match(name, self.playlists.list_names(),
+                                    threshold=0.5, top_n=1)
+                if matched:
+                    pl = self.playlists.get(matched[0][0])
+                    log.info("歌单模糊匹配: %s → %s", name, matched[0][0])
             paths = pl.tracks if pl else []
-            pl_name = name
+            pl_name = pl.name if pl else name
         if not paths:
             self.respond(f"歌单《{pl_name}》不存在")
             return False

@@ -21,6 +21,10 @@ log = logging.getLogger(__name__)
 STATE_IDLE = "idle"
 STATE_LISTENING = "listening"  # 已唤醒，正在听指令
 
+# 提示音（"你好"）异步播放的启动缓冲：speaker.say() 返回后 mpv 需要几百 ms
+# 才真正发声。若静默期不算这段，提示音回声会被麦克风录进 ASR。
+_SAY_STARTUP_MARGIN = 0.35  # 秒
+
 
 class VoiceApp:
     """语音主循环：mic → VAD → KWS → ASR → 指令。
@@ -168,12 +172,15 @@ class VoiceApp:
             self._phase("回应结束（「你好」播完）")
         self.state = STATE_LISTENING
         self._wake_at = t  # 以采集时刻为基准，避免处理延迟压缩超时窗口
-        # 提示音 + 余量 播放期间丢弃麦克风音频，确保"你好"不被录进指令。
-        # 按实际提示音时长计算静默期，避免固定 700ms 造成的多余等待。
+        # 静默期基准 = 提示音 say() 调用后的处理时刻（与采集时间戳同为 monotonic，可比）。
+        # 之所以不用 _wake_at：say() 是在 _wake_at 之后、由处理线程才调用的，
+        # 中间隔了处理延迟；以 say() 时刻为基准才能确保提示音（含启动缓冲）的
+        # 回声整体都被丢弃，否则会录进 ASR 变成指令开头的"你好"。
+        t0 = time.monotonic()
         fb_dur = self.speaker.say_duration("你好") if self.speaker else 0.0
         grace = self.post_wake_grace_ms / 1000.0
-        self._listen_from = self._wake_at + fb_dur + grace
-        self._phase(f"静默期 {fb_dur:.2f}s+{grace:.2f}s，之后可开始说指令")
+        self._listen_from = t0 + fb_dur + _SAY_STARTUP_MARGIN + grace
+        self._phase(f"静默期 {fb_dur:.2f}s+启动缓冲{_SAY_STARTUP_MARGIN:.2f}s+{grace:.2f}s，之后可开始说指令")
         if self.asr:
             self.asr.reset()
         self._recording = False
@@ -181,6 +188,15 @@ class VoiceApp:
     def _on_utterance_done(self) -> None:
         self._phase("录音结束（指令说完）")
         self._clear_queue()  # 识别完成，剩余缓存已无用，直接丢弃
+        # 关键：流式 ASR 的尾字需要"说完后的停顿静音"才能被解码。
+        # 关键：流式 ASR 的尾字需要"说完后的停顿静音"才能被解码。
+        # 实测：结尾补 ~0.5s 静音（8000 采样 @16k）再 finish，能把最后一个字解出来
+        # （如"睡觉"→"睡觉"；0.25s 仍会丢尾字，故用 0.5s）。
+        if self.asr:
+            self.asr.accept_waveform(
+                pcm_bytes_to_float32(b"\x00\x00" * 8000)  # 0.5s @16k 静音
+            )
+            self.asr.finish()
         text = self.asr.get_text() if self.asr else ""
         if self.asr:
             self.asr.reset()
