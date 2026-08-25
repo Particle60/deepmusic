@@ -29,6 +29,7 @@ _REPO_CACHE_DIR = "assets/tts_cache"
 _PRECOMPILED_PHRASES = (
     "开始开机",
     "开机成功",
+    "开机",
     "你好",
     "听不懂",
     "歌曲不存在",

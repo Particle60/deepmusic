@@ -91,7 +91,7 @@ commands:
 
   - intent: resume
     type: keyword
-    keywords: [继续, 接着播, 接着放, 继续播放, 开始播放]
+    keywords: [继续, 接着播, 接着放, 继续播放, 开始播放, 开机]
 
   - intent: stop
     type: keyword
