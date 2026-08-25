@@ -1,32 +1,38 @@
-# 离线语音音乐播放器 systemd 服务（Linux 开发板）
-# 安装:
-#   1. 把项目放到 /opt/voice-music-player
-#   2. 修改下方 ExecStart 里的用户/路径
-#   3. sudo cp deploy/voice-music-player.service /etc/systemd/system/
-#   4. sudo systemctl daemon-reload
-#   5. sudo systemctl enable --now voice-music-player
-# 查看日志: journalctl -u voice-music-player -f
+# 离线语音音乐播放器 systemd 服务（NanoPi-S2，repo 在 ~/deepmusic）
+#
+# 安装（在板上执行）：
+#   1. sudo cp deploy/voice-music-player.service /etc/systemd/system/
+#   2. sudo systemctl daemon-reload
+#   3. sudo systemctl enable --now voice-music-player
+#   4. 查看日志：journalctl -u voice-music-player -f
+#
+# 前提（都已处理）：
+#   - ALSA 混音已配置：/etc/asound.conf（setup_alsa.sh 生成）
+#   - 用户 pi 属于 audio 组（有 ALSA 访问权限）
+#   - 项目 venv 已建好：~/deepmusic/.venv
 
 [Unit]
 Description=Voice Music Player (offline ASR + local music)
+# 等声卡就绪再启动（音频驱动/ALSA 混音准备完）
 After=sound.target network.target
 Wants=sound.target
 
 [Service]
 Type=simple
-# 用你的实际用户；需要 ALSA/音频权限，通常加入 audio 组
+# 你的实际用户；需要 ALSA/音频权限，pi 通常已加入 audio 组
 User=pi
 Group=audio
-WorkingDirectory=/opt/voice-music-player
-ExecStart=/opt/voice-music-player/.venv/bin/python /opt/voice-music-player/app/main.py --voice
-# 崩溃自动重启
+WorkingDirectory=/home/pi/deepmusic
+ExecStart=/home/pi/deepmusic/.venv/bin/python /home/pi/deepmusic/app/main.py --voice
+# 崩溃/退出自动重启
 Restart=on-failure
 RestartSec=3
-# 环境变量（可选）
-Environment=VMP_MUSIC_DIR=/mnt/sd/Music
+# 环境变量
 Environment=PYTHONUNBUFFERED=1
-# 内存/文件保护（按需）
-NoNewPrivileges=true
+# 音乐目录默认用项目配置 config/config.yaml 的 music.dir（相对 WorkingDirectory 解析）
+# 若音乐在 SD 卡，取消下面这行并改成实际挂载路径：
+# Environment=VMP_MUSIC_DIR=/mnt/sd/Music
 
 [Install]
 WantedBy=multi-user.target
+
