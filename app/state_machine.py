@@ -142,7 +142,10 @@ class VoiceApp:
             # 超时/静默期一律按"采集时刻"t 判定，避免处理延迟导致误判
             if t > self._wake_at + self.wake_timeout_ms / 1000.0:
                 self._phase("等待指令超时，回到待机")
+                if self.speaker:
+                    self.speaker.say("指令超时")  # 提示音：指令等待超时
                 self._clear_queue()  # 丢弃剩余缓存
+                self._resume_previous()  # 恢复唤醒前暂停的音乐
                 self._go_idle()
                 return
             if t < self._listen_from:
