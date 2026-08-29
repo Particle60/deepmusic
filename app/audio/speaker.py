@@ -16,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from typing import Dict
 
 log = logging.getLogger(__name__)
@@ -43,10 +44,17 @@ _PRECOMPILED_PHRASES = (
     "正在播放",
     "当前歌单",
     "所有歌曲",
+    "歌单已刷新",
     "当前没有在播放",
     "当前没有可用的播放列表",
     "歌单",
     "不存在",
+    "歌单不存在",
+    "更新歌单失败",
+    "音量已设成",
+    # 音量 40~100（10 的整数倍）中文读法，供"音量已设成六十"等动态反馈走缓存
+    "四十", "五十",
+    "六十", "七十", "八十", "九十", "一百",
 )
 
 
@@ -206,6 +214,20 @@ class Speaker:
             if cached and os.path.exists(cached):
                 self._play_wav(cached)
                 return
+            # ①b 缓存拼接：动态反馈拆成缓存短语连播（如"音量六十"→"音量"+"六十"）
+            #     即使 tts 关闭也能播放，覆盖音量/模式等可枚举反馈。
+            #     注意：常驻 mpv 的 loadfile 是 replace，连续 play 会顶掉前一个，
+            #     所以每次播放后要等前一个播完再播下一个。
+            parts = self._split_cache_parts(text)
+            if parts:
+                for p in parts:
+                    p_cached = self._cache.get(p)
+                    if p_cached and os.path.exists(p_cached):
+                        self._play_wav(p_cached)
+                        # 等当前短语播完再播下一个，避免被 replace 顶掉
+                        time.sleep(self.say_duration(p) + 0.1)
+                if parts:
+                    return
             # ② 动态文本（歌名/歌单名/数字/模式等拼接，无法预编译）
             if self._tts is not None:
                 # TTS 已启用：即时合成
@@ -232,6 +254,29 @@ class Speaker:
                 )
         except Exception:  # noqa: BLE001
             log.warning("TTS 播放失败", exc_info=True)
+
+    def _split_cache_parts(self, text: str):
+        """尝试把动态反馈文本拆成缓存短语序列（如"音量已设成六十"→["音量已设成","六十"]）。
+
+        命中则返回短语列表；无法完全拆分返回 None（由调用方走其它分支）。
+        """
+        # "音量已设成X"：音量已设成 + 中文数字
+        if text.startswith("音量已设成") and len(text) > len("音量已设成"):
+            num = text[len("音量已设成"):]
+            if self._cache.get(num) and os.path.exists(self._cache[num]):
+                return ["音量已设成", num]
+        # "现在播放模式：X" / "已切换为X" 等固定前缀 + 模式
+        mode_map = {
+            "随机播放": "已切换为随机播放",
+            "顺序播放": "已切换为顺序播放",
+            "单曲循环": "已切换为单曲循环",
+            "列表循环": "已切换为列表循环",
+        }
+        for key, full in mode_map.items():
+            if text == f"现在播放模式：{key}" or text == f"已切换为{key}":
+                if self._cache.get(full) and os.path.exists(self._cache[full]):
+                    return [full]
+        return None
 
     def say_duration(self, text: str) -> float:
         """返回指定文本播报音频的大致时长（秒）。用于精确计算提示音静默期。

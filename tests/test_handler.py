@@ -93,8 +93,8 @@ class TestHandler(unittest.TestCase):
     def test_volume(self):
         self.handler.handle(parse_command("音量调到 30"))
         self.assertEqual(self.player.get_volume(), 40)  # 下限 40
-        self.handler.handle(parse_command("音量调到 60"))
-        self.assertEqual(self.player.get_volume(), 60)
+        self.handler.handle(parse_command("音量调到 33"))
+        self.assertEqual(self.player.get_volume(), 40)  # 四舍五入到 40
         self.handler.handle(parse_command("音量调到 300"))
         self.assertEqual(self.player.get_volume(), 100)  # 上限 100
 

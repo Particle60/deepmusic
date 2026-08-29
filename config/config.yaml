@@ -17,7 +17,7 @@ asr:
   keywords_file: ""             # 唤醒词文件；留空则用模型目录 keywords.txt → test_wavs/test_keywords.txt
 
 tts:
-  enabled: false                # 是否启用离线 TTS 语音播报（默认关闭；低性能板关闭以省 CPU，固定提示音仍走 tts_cache）
+  enabled: false                # 是否启用离线 TTS 语音播报（默认关闭；固定提示音走 tts_cache，动态文本在低性能板静默）
   model_dir: "models/tts_melo/vits-melo-tts-zh_en"   # MeloTTS 中文，音质较好，44100Hz
   speaker_id: 0                 # melo 单说话人，此值忽略
   length_scale: 0.8             # 语速（越小越快），melo 用

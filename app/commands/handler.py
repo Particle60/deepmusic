@@ -198,7 +198,7 @@ class CommandHandler:
             paths = pl.tracks if pl else []
             pl_name = pl.name if pl else name
         if not paths:
-            self.respond(f"歌单《{pl_name}》不存在")
+            self.respond("歌单不存在")
             return False
         # 成功播放：静默执行，不播报
         self.controller.load(paths, autoplay=True, playlist_name=pl_name)
@@ -228,8 +228,7 @@ class CommandHandler:
                 if pl:
                     self.controller.reload_queue(pl.tracks)
             # 内置默认歌单"所有歌曲" + 歌单目录里的歌单
-            names = ["所有歌曲"] + self.playlists.list_names()
-            self.respond(f"已更新歌单：{','.join(names)}")
+            self.respond("歌单已刷新")
             return True
         except Exception:  # noqa: BLE001
             log.exception("更新歌单失败")
@@ -283,11 +282,13 @@ class CommandHandler:
         return True
 
     def _on_set_volume(self, args: dict) -> bool:
+        # 限制 40~100 且为 10 的整数倍（与 tts_cache 预生成的中文数字对应）
         vol = max(40, min(100, int(args.get("volume", 80))))
+        vol = (vol + 5) // 10 * 10  # 四舍五入到 10
         self.controller.player.set_volume(vol)
         if self.speaker is not None:
             self.speaker.set_volume(vol)  # 提示音与主音量联动
-        self.respond(f"音量{int_to_cn(vol)}")
+        self.respond(f"音量已设成{int_to_cn(vol)}")
         return True
 
     def _on_volume_up(self, args: dict) -> bool:
@@ -295,7 +296,7 @@ class CommandHandler:
         self.controller.player.set_volume(vol)
         if self.speaker is not None:
             self.speaker.set_volume(vol)
-        self.respond(f"音量{int_to_cn(vol)}")
+        self.respond(f"音量已设成{int_to_cn(vol)}")
         return True
 
     def _on_volume_down(self, args: dict) -> bool:
@@ -303,7 +304,7 @@ class CommandHandler:
         self.controller.player.set_volume(vol)
         if self.speaker is not None:
             self.speaker.set_volume(vol)
-        self.respond(f"音量{int_to_cn(vol)}")
+        self.respond(f"音量已设成{int_to_cn(vol)}")
         return True
 
     def _on_status(self, args: dict) -> bool:
