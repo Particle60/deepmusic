@@ -40,7 +40,11 @@ def levenshtein(a: str, b: str) -> int:
 
 
 def similarity(a: str, b: str) -> float:
-    """0~1 相似度：拼音编辑距离归一化 + 前缀加分。"""
+    """0~1 相似度：拼音编辑距离归一化 + 前缀/子串加权。
+
+    设计要点：候选"基本就是查询词"（前缀匹配，如 夜曲 vs 01夜曲）应高于
+    "查询词只是候选中间的子串"（如 夜曲 ⊂ 月半小夜曲），避免把长歌名误当精确命中。
+    """
     if not a or not b:
         return 0.0
     pa, pb = to_pinyin(a), to_pinyin(b)
@@ -48,11 +52,17 @@ def similarity(a: str, b: str) -> float:
         return 0.0
     if pa == pb:
         return 1.0
-    # 子串匹配：查询词是候选的子串（如"红玫瑰" ⊂ "陈奕迅-红玫瑰"）→ 高分
+
+    # 查询词是候选的连续子串（如 夜曲 ⊂ 月半小夜曲）→ 中高分（但低于前缀匹配）
     if pa in pb:
-        return 0.98
+        # 子串越靠近开头/整体占比越高，越接近精确命中
+        pos = pb.find(pa)
+        ratio = len(pa) / len(pb)
+        # 前缀子串 0.95，越靠后越低；短查询但占比高再往上浮
+        return min(0.97, 0.90 + 0.05 * (1 - pos / max(1, len(pb))) + 0.05 * ratio)
     if pb in pa:
         return 0.98
+
     dist = levenshtein(pa, pb)
     max_len = max(len(pa), len(pb)) or 1
     score = 1.0 - dist / max_len
