@@ -41,7 +41,8 @@ class CommandHandler:
         self._suppress_resume = False  # 默认：指令后允许恢复音乐
         method = getattr(self, f"_on_{cmd.intent}", None)
         if method is None:
-            self.respond("听不懂")
+            # 同步播报失败提示音（播完才返回），避免与随后恢复的音乐重叠
+            self._respond_sync("听不懂")
             return False
         try:
             ok = method(cmd.args)
@@ -49,8 +50,18 @@ class CommandHandler:
             return True if ok is not False else False
         except Exception:  # noqa: BLE001
             log.exception("处理指令失败: %s", cmd)
-            self.respond("执行出错，请重试")
+            self._respond_sync("执行出错，请重试")
             return False
+
+    def _respond_sync(self, msg: str) -> None:
+        """同步播报：提示音播完才返回（用于失败反馈，避免与恢复的音乐重叠）。"""
+        if self.speaker is not None:
+            try:
+                self.speaker.say_sync(msg)
+                return
+            except Exception:  # noqa: BLE001
+                log.warning("同步播报失败，回退异步", exc_info=True)
+        self.respond(msg)
 
     def should_resume_after(self) -> bool:
         """指令执行后是否应恢复唤醒前暂停的音乐（暂停/停止指令除外）。"""
@@ -129,7 +140,7 @@ class CommandHandler:
         name = args.get("name", "")
         tracks = self.library.find_song(name, threshold=self.match_threshold, top_n=3)
         if not tracks:
-            self.respond("歌曲不存在")
+            self._respond_sync("歌曲不存在")
             return False
         path = tracks[0].path
         current_pl = self.controller.playlist_name
@@ -198,7 +209,7 @@ class CommandHandler:
             paths = pl.tracks if pl else []
             pl_name = pl.name if pl else name
         if not paths:
-            self.respond("歌单不存在")
+            self._respond_sync("歌单不存在")
             return False
         # 成功播放：静默执行，不播报
         self.controller.load(paths, autoplay=True, playlist_name=pl_name)
@@ -207,7 +218,7 @@ class CommandHandler:
     def _on_play_index(self, args: dict) -> bool:
         idx = int(args.get("index", 0))
         if not self.controller.play_index(idx):
-            self.respond("当前没有可用的播放列表")
+            self._respond_sync("当前没有可用的播放列表")
             return False
         return True
 

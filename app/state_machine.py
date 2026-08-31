@@ -143,7 +143,7 @@ class VoiceApp:
             if t > self._wake_at + self.wake_timeout_ms / 1000.0:
                 self._phase("等待指令超时，回到待机")
                 if self.speaker:
-                    self.speaker.say("指令超时")  # 提示音：指令等待超时
+                    self.speaker.say_sync("指令超时")  # 同步播完再恢复音乐，避免重叠
                 self._clear_queue()  # 丢弃剩余缓存
                 self._resume_previous()  # 恢复唤醒前暂停的音乐
                 self._go_idle()
@@ -205,7 +205,7 @@ class VoiceApp:
             self.asr.reset()
         if not text:
             if self.speaker:
-                self.speaker.say("听不懂")  # 空识别/没听清
+                self.speaker.say_sync("听不懂")  # 同步播完再恢复音乐，避免重叠
             self._resume_previous()
             self._go_idle()
             return

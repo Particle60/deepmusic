@@ -256,6 +256,23 @@ class Speaker:
         except Exception:  # noqa: BLE001
             log.warning("TTS 播放失败", exc_info=True)
 
+    def say_sync(self, text: str) -> None:
+        """同步播报：触发提示音播放并等待播完再返回。
+
+        用于需要"先放提示音、再继续其它（如恢复歌曲）"的场景，
+        避免提示音和随后恢复的音乐同时播放重叠。
+        """
+        # 估算提示音时长：缓存命中用 WAV 实际时长；否则按语速估算
+        dur = self.say_duration(text)
+        # 拼接提示音（音量已设成六十 = 两段）需算总时长
+        parts = self._split_cache_parts(text)
+        if parts:
+            dur = sum(self.say_duration(p) for p in parts) + 0.15 * len(parts)
+        # 触发播放（异步，内部已处理拼接段间等待）
+        self.say(text)
+        # 等待播完（略加余量，保证完全播完）
+        time.sleep(dur + 0.2)
+
     def _split_cache_parts(self, text: str):
         """尝试把动态反馈文本拆成缓存短语序列（如"音量已设成六十"→["音量已设成","六十"]）。
 
